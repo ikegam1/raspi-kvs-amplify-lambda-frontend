@@ -21,7 +21,7 @@
     </div>
 
     <div class="logout-form" v-show="login">
-        <amplify-sign-out></amplify-sign-out>
+        <button class="btn btn-primary" @click="signOut()">ログアウト</button>
         <button class="btn btn-primary" @click="play()">再生</button>
     </div>
 
@@ -90,6 +90,19 @@ export default {
         this.status = 'ログインに失敗しました'
         this.message_text = '';
         this.login = false;
+      });
+    },
+    signOut: function () { 
+      Auth.signOut()
+      .then((data) => {
+        this.status = 'ログアウトしました'
+        this.message_text = '';
+        this.url = '';
+        this.login = false;
+      }).catch((err) => {
+        this.status = 'ログアウトに失敗しました'
+        this.message_text = '';
+        this.login = true;
       });
     },
     play: async function() {
