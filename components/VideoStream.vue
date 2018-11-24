@@ -2,24 +2,29 @@
   <div class="page">
 
     <div class="turtle-video" v-show="url">
-      <video id="turtlevideo" height="480" width="640" class="video-js vjs-default-skin" controls autoplay></video>
+      <video id="turtlevideo" width="320" class="video-js vjs-default-skin" controls autoplay></video>
     </div>
 
     <div class="message">
       <p>{{ status }}</p>
       <p>{{ message_text }} </p>
+      <h1 v-if="info">{{info}}</h1>
     </div>
  
-    <div class="login-form">
+    <div class="login-form" v-show="login == false">
       <p>ログイン</p>
-      <h1 v-if="info">{{info}}</h1>
       <label>ユーザー名</label>
       <input type="text" v-model="userInfo.username"/>
       <label>パスワード</label>
       <input type="password" v-model="userInfo.password"/>
       <button class="btn btn-primary" @click="signIn()">ログイン</button>
     </div>
-    <button class="btn btn-primary" @click="play()">再生</button>
+
+    <div class="logout-form" v-show="login">
+        <amplify-sign-out></amplify-sign-out>
+        <button class="btn btn-primary" @click="play()">再生</button>
+    </div>
+
   </div>
 </template>
 
@@ -34,6 +39,7 @@ Amplify.configure(aws_exports);
 export default {
   data () {
     return {
+      login: false,
       info: '',
       initialized: false,
       streams: {
@@ -79,8 +85,11 @@ export default {
       .then((data) => {
         this.message_text = 'ログインしました';
         this.status = 'こんにちは、'+data.username+'さん';
+        this.login = true;
       }).catch((err) => {
+        this.status = 'ログインに失敗しました'
         this.message_text = '';
+        this.login = false;
       });
     },
     play: async function() {
@@ -121,5 +130,15 @@ export default {
 <style scoped>
   .login-form {
     margin: 20;
+  }
+  .page {
+    width: 100%;
+  }
+  .turtle-video {
+    width: 100%;
+  }
+  #turtleVideo{
+    min-width: 100%;
+    min-width: 100vw;
   }
 </style>
