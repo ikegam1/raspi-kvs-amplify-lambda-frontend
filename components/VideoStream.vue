@@ -1,44 +1,114 @@
 <template>
   <div class="page">
 
-    <div class="turtle-video" v-show="url">
-      <video id="turtlevideo" width="320" class="video-js vjs-default-skin" controls autoplay></video>
+    <div class="turtle-video tile is-ancestor" v-show="url">
+      <div class="tile is-parent">
+        <div class="columns">
+          <div class="column">&nbsp;</div>
+          <div class="column">
+            <article class="tile is-child box">
+            <video id="turtlevideo" width="320" class="video-js vjs-default-skin" controls autoplay></video>
+            </article>
+          </div>
+          <div class="column">&nbsp;</div>
+        </div>
+      </div>
+      <div class="tile is-parent">
+        <article class="tile is-child box">
+          <vue-c3 :handler="handler"></vue-c3>
+          <b-table :data="tempdata" :columns="tempcolumns"></b-table>
+        </article>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="notification">
+        <p>{{ status }}</p>
+        <p><strong>{{ message_text }}</strong> </p>
+        <h1 v-if="info"><code>{{info}}</code></h1>
+      </div>
     </div>
 
     <div class="message">
-      <p>{{ status }}</p>
-      <p>{{ message_text }} </p>
-      <h1 v-if="info">{{info}}</h1>
     </div>
  
     <div class="login-form" v-show="login == false">
-      <p>ログイン</p>
-      <label>ユーザー名</label>
-      <input type="text" v-model="userInfo.username"/>
-      <label>パスワード</label>
-      <input type="password" v-model="userInfo.password"/>
-      <button class="btn btn-primary" @click="signIn()">ログイン</button>
+      <div class="columns">
+        <div class="column">
+          <p>ログイン</p>
+        </div>
+      </div>
+
+      <div class="columns">
+        <div class="column">
+          <label>ユーザー名</label>
+        </div>
+        <div class="column">
+          <b-field>
+            <b-input placeholder="id"
+                icon="account"
+                size="is-small"
+                v-model="userInfo.username"
+            >
+            </b-input>
+          </b-field>
+        </div>
+        <div class="column">&nbsp; </div>
+      </div>
+
+      <div class="columns">
+        <div class="column">
+          <label>パスワード</label>
+        </div>
+        <div class="column">
+          <b-field>
+            <b-input type="password"
+                placeholder="Regular password input"
+                size="is-small"
+                v-model="userInfo.password">
+            </b-input>
+          </b-field>
+        </div>
+        <div class="column">
+          <button class="button is-primary" @click="signIn()">ログイン</button>
+        </div>
+      </div>
     </div>
 
     <div class="logout-form" v-show="login">
-        <button class="btn btn-primary" @click="signOut()">ログアウト</button>
-        <button class="btn btn-primary" @click="play()">再生</button>
+        <button class="button" @click="signOut()">ログアウト</button>
+        <button class="button is-success" @click="play()">再生</button>
     </div>
 
   </div>
 </template>
 
 <script>
-import Amplify, { Auth, Storage, Logger, API } from 'aws-amplify'
+import Amplify, { Auth, Storage, Logger, API, graphqlOperation } from 'aws-amplify'
 import aws_exports from '../aws-exports'; 
+import awsmobile from '../awsmobile'; 
 import videojs from 'video.js';
 import 'videojs-contrib-hls';
 import 'video.js/dist/video-js.css'
-Amplify.configure(aws_exports);
+Amplify.configure(awsmobile);
+Auth.configure(aws_exports);
+API.configure(aws_exports);
+import * as queries from '../graphql/queries';
+import Vue from 'vue'
+import VueC3 from 'vue-c3';
+import 'c3/c3.min.css'
+import moment from 'moment'
+
+Vue.use(require('vue-moment'));
 
 export default {
+  components: {
+    VueC3
+  },
   data () {
     return {
+      res: [],
+      handler: new Vue(),
       login: false,
       info: '',
       initialized: false,
@@ -65,7 +135,26 @@ export default {
           src: ''
         }]
       },
-      player: ''
+      player: '',
+      tempdata: [],
+      tempcolumns: [
+        {
+          field: 'date',
+          label: 'Date'
+        },
+        {
+          field: 'd1',
+          label: '温',
+          numeric: true,
+          width: 80
+        },
+        {
+          field: 'd2',
+          label: '湿',
+          numeric: true,
+          width: 80
+        }
+      ]
     };
   },
   computed: {
@@ -121,6 +210,7 @@ export default {
             });
             //self.playerOptions.sources[0].src = url;
             self.player.play();
+            self.measurements();
         })
         .catch(err => console.log(err));
     },
@@ -136,8 +226,63 @@ export default {
     enterStream() {
       this.playerOptions.sources[0].src = this.streams.hls
       this.playerOptions.autoplay = false
+    },
+    measurements: async function() {
+      const self = this
+      //let _filter = { 'expire': { 'ge' : (new Date() + 36 * 3600 ) * 0.001 } }
+      let _res = await API.graphql(graphqlOperation(queries.listMeasurements, {limit: (60/5) * 48}))
+      self.res = []
+      for (let d of _res.data.listKamekusaDht22S.items){
+        let j = JSON.parse(d.payload)
+        let dt = new Date((parseInt(j.expire) - 48 * 3600) * 1000)
+        let month = ( dt.getMonth()+1 < 10 ) ? '0' + (dt.getMonth()+1).toString()   : dt.getMonth() + 1
+        let day = ( dt.getDate()   < 10 ) ? '0' + dt.getDate()   : dt.getDate()
+        let hour = ( dt.getHours()   < 10 ) ? '0' + dt.getHours()   : dt.getHours()
+        let min = ( dt.getMinutes()   < 10 ) ? '0' + dt.getMinutes()   : dt.getMinutes()
+        let sec = ( dt.getSeconds()   < 10 ) ? '0' + dt.getSeconds()   : dt.getSeconds()
+        j.date = month + '-' + day + ' ' + hour + ':' +  min
+        j.fulldate = dt.getFullYear() + '-' + month + '-' + day + 'T' + hour + ':' +  min + ':' + sec
+        self.res.push(j)
+      }
+      console.log(self.res)
+      self.res.sort((a,b) => {
+        if(parseInt(a.expire) > parseInt(b.expire)) return -1
+        if(parseInt(a.expire) < parseInt(b.expire)) return 1
+        return 0
+      })
+      self.tempdata = self.res.slice(0,20)
+      self.updateGraph(self.res.slice(0,50))
+    },
+    updateGraph(jsons) {
+      let x = ['x']
+      let d1 = ['温']
+      let d2 = ['湿']
+      for (let j of jsons){
+        //x.push(j.date)
+        x.push(j.fulldate)
+        d1.push(j.d1)
+        d2.push(j.d2)
+      }
+      const options = {
+        data: {
+          x: 'x',
+          xFormat: '%Y-%m-%dT%H:%M:%S',
+          columns: [x,d1,d2],
+        },
+        axis: {
+          x: {
+            type: 'timeseries',
+            tick: {
+                format: '%d %H:%M',
+                rotate: 75
+            }
+          }
+        },
+        type: 'spline'
+      }
+      this.handler.$emit('init', options)
     }
-  }
+  },
 }
 </script>
 <style scoped>
