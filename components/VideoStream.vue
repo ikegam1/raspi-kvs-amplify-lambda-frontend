@@ -1,23 +1,46 @@
 <template>
   <div class="page">
+    <b-message auto-close title="Error!" type="is-danger" has-icon :active.sync="isError">
+      {{error}}
+    </b-message>
+
+    <section class="section" v-show="url">
+      <div class="container">
+        <b-collapse :open="false">
+            <button class="button is-primary" slot="trigger">Servo Controll</button>
+            <div class="notification">
+              <button class="button is-warning" @click="publishservo(1000)">
+                <i class="fas fa-stop"></i>
+                <span>Stop</span>
+              </button> 
+              <button class="button is-info" @click="publishservo(1750)">
+                <i class="fas fa-play"></i>
+                <span>Shoot</span>
+              </button> 
+            </div>
+        </b-collapse>
+      </div>
+    </section>
 
     <div class="turtle-video tile is-ancestor" v-show="url">
-      <div class="tile is-parent">
-        <div class="columns">
-          <div class="column">&nbsp;</div>
-          <div class="column">
-            <article class="tile is-child box">
-            <video id="turtlevideo" width="320" class="video-js vjs-default-skin" controls autoplay></video>
-            </article>
+      <div class="tile is-ancestor">
+        <div class="tile is-parent">
+          <div class="columns">
+            <div class="column">&nbsp;</div>
+            <div class="column">
+              <article class="tile is-child box">
+              <video id="turtlevideo" width="320" class="video-js vjs-default-skin" controls autoplay></video>
+              </article>
+            </div>
+            <div class="column">&nbsp;</div>
           </div>
-          <div class="column">&nbsp;</div>
         </div>
-      </div>
-      <div class="tile is-parent">
-        <article class="tile is-child box">
-          <vue-c3 :handler="handler"></vue-c3>
-          <b-table :data="tempdata" :columns="tempcolumns"></b-table>
-        </article>
+        <div class="tile is-parent">
+          <article class="tile is-child box">
+            <vue-c3 :handler="handler"></vue-c3>
+            <b-table :data="tempdata" :columns="tempcolumns"></b-table>
+          </article>
+        </div>
       </div>
     </div>
 
@@ -32,19 +55,11 @@
     <div class="message">
     </div>
  
-    <div class="login-form" v-show="login == false">
+    <div class="login-form container" v-show="login == false">
       <div class="columns">
+        <div class="column">&nbsp;</div>
         <div class="column">
-          <p>ログイン</p>
-        </div>
-      </div>
-
-      <div class="columns">
-        <div class="column">
-          <label>ユーザー名</label>
-        </div>
-        <div class="column">
-          <b-field>
+          <b-field label="User" potision="is-centered" grouped>
             <b-input placeholder="id"
                 icon="account"
                 size="is-small"
@@ -52,16 +67,8 @@
             >
             </b-input>
           </b-field>
-        </div>
-        <div class="column">&nbsp; </div>
-      </div>
 
-      <div class="columns">
-        <div class="column">
-          <label>パスワード</label>
-        </div>
-        <div class="column">
-          <b-field>
+          <b-field label="Passwd" grouped>
             <b-input type="password"
                 placeholder="Regular password input"
                 size="is-small"
@@ -69,9 +76,19 @@
             </b-input>
           </b-field>
         </div>
+        <div class="column">&nbsp;</div>
+      </div>
+
+      <div class="columns">
+        <div class="column">&nbsp;</div>
         <div class="column">
-          <button class="button is-primary" @click="signIn()">ログイン</button>
+          <b-field>
+            <p class="control">
+              <button position="is-centered" class="button is-primary" @click="signIn()">ログイン</button>
+            </p>
+          </b-field>
         </div>
+        <div class="column">&nbsp;</div>
       </div>
     </div>
 
@@ -85,8 +102,8 @@
 
 <script>
 import Amplify, { Auth, Storage, Logger, API, graphqlOperation } from 'aws-amplify'
-import aws_exports from '../aws-exports'; 
-import awsmobile from '../awsmobile'; 
+import aws_exports from '../js/aws-exports'; 
+import awsmobile from '../js/awsmobile'; 
 import videojs from 'video.js';
 import 'videojs-contrib-hls';
 import 'video.js/dist/video-js.css'
@@ -107,6 +124,8 @@ export default {
   },
   data () {
     return {
+      isError: false,
+      error: '',
       res: [],
       handler: new Vue(),
       login: false,
@@ -115,7 +134,7 @@ export default {
       streams: {
         hls: ''
       },
-      html5: { hls: { withCredentials: false } },
+      html5: { hls: { withCredentials: true } },
       status: '',
       token: '',
       userInfo: {
@@ -198,8 +217,13 @@ export default {
       const self = this
       Auth.currentSession()
         .then(session => session.idToken.jwtToken)
-        .then(token => API.get('RaspiStream', '/',{"headers":{"Authorization":token}}))
-        .then(response => response.body)
+        .then(token => API.get('RaspiStream', '/',
+            {
+                "headers":{"Authorization":token, "Content-Type": 'application/json'},
+                "queryStringParameters": {}
+            }
+        ))
+        .then(res => res.body)
         .then(function(url){
             console.log(url);
             self.url = url;
@@ -229,8 +253,8 @@ export default {
     },
     measurements: async function() {
       const self = this
-      //let _filter = { 'expire': { 'ge' : (new Date() + 36 * 3600 ) * 0.001 } }
-      let _res = await API.graphql(graphqlOperation(queries.listMeasurements, {limit: (60/5) * 48}))
+      let _filter = {"expire": {'ge' : (new Date() + 36 * 3600 ) * 0.001}, "limit": (60/5) * 12} 
+      let _res = await API.graphql(graphqlOperation(queries.listMeasurements, _filter))
       self.res = []
       for (let d of _res.data.listKamekusaDht22S.items){
         let j = JSON.parse(d.payload)
@@ -281,8 +305,24 @@ export default {
         type: 'spline'
       }
       this.handler.$emit('init', options)
+    },
+    publishservo: function(angle) {
+      self = this;
+      console.log(angle)
+      Auth.currentSession()
+        .then(session => session.idToken.jwtToken)
+        .then(token => API.get('RaspiStream', '/mqtt/' + angle.toString(),
+            {
+                "headers":{"Authorization":token, "Content-Type": 'application/json'}
+            }
+        ))
+        .then(function(response){ self.dialogAlert('publish success!')})
+        .catch(err => function(err){this.error = err});
+    },
+    dialogAlert: function(mess){
+      this.$dialog.alert(mess);
     }
-  },
+  }
 }
 </script>
 <style scoped>
@@ -298,5 +338,8 @@ export default {
   #turtleVideo{
     min-width: 100%;
     min-width: 100vw;
+  }
+  .c3-graph {
+    min-height: 150px;
   }
 </style>
